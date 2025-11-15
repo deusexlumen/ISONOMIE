@@ -8,7 +8,7 @@ Dies ist das Quell-Artefakt für eine interaktive Web-Erfahrung, die sich mit de
 
 Du kannst den Zauber live in Aktion erleben:
 
-https://github.com/deusexlumen/ISONOMIE/tree/main
+[https://github.com/deusexlumen/ISONOMIE/tree/main](https://da.gd/ISONOMIE)
 
 ## ✨ Merkmale (Die Zauber)
 
