@@ -1,4 +1,4 @@
-# ISONOMIE: The Architecture ofPower
+# ISONOMIE: The Architecture of Power
 
 Dies ist das Quell-Artefakt für eine interaktive Web-Erfahrung, die sich mit dem architektonischen Fehler moderner Demokratien auseinandersetzt. Es ist als einzelne `index.html`-Datei konzipiert und wird live über GitHub Pages bereitgestellt.
 
