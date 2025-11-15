@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISONOMIE: The Architecture of Power</title>
+    
+    <!-- Läd Tailwind CSS (Entwicklungsumgebung) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Performance-Fix: 'defer' verhindert das Blockieren des DOM-Renderings -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" defer></script> 
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;500&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'sans-serif'],
+                        serif: ['Cormorant Garamond', 'serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        'void': '#050505',
+                        'concrete': '#121212',
+                        'paper': '#EAE9E5',
+                        'alert': '#FF3333', // Signal Red
+                        'logic': '#00CC66', // Signal Green
+                        'blueprint': '#2A2A2A'
+                    },
+                    spacing: {
+                        '128': '32rem',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* ... (Alle <style> Blöcke bleiben exakt identisch) ... */
+        :root {
+            --cursor-size: 20px;
+        }
+        
+        body {
+            background-color: #050505;
+            color: #EAE9E5;
+            overflow-x: hidden;
+        }
+
+        #cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--cursor-size);
+            height: var(--cursor-size);
+            border: 1px solid #EAE9E5;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            mix-blend-mode: difference;
+            transition: transform 0.1s ease, width 0.3s ease, height 0.3s ease, background-color 0.3s;
+            transform: translate(-50%, -50%);
+        }
+        
+        #cursor.hovered {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(234, 233, 229, 0.1);
+            border-color: transparent;
+        }
+
+        #canvas-wrapper {
+             cursor: none;
+        }
+        
+        .grid-bg {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+
+        .kerning-tight { letter-spacing: -0.03em; }
+        .text-balance { text-wrap: balance; } 
+
+        .line-clamp-4 {
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .glass-panel {
+            background: rgba(18, 18, 18, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .sim-overlay {
+            background: radial-gradient(circle, transparent 20%, #050505 100%);
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .blink {
+            animation: blink 1.5s step-end infinite;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-alert selection:text-void">
+
+    <div id="cursor"></div>
+    
+    <!-- KORREKTUR: Nav-Inhalt wiederhergestellt -->
+    <nav class="fixed top-0 w-full z-50 px-6 py-4 flex justify-between items-center mix-blend-difference">
+        <div class="font-mono text-xs tracking-widest">FIG. 1.0 [ISONOMIE]</div>
+        <div class="font-mono text-xs tracking-widest text-right">
+            <span id="clock">00:00:00</span><br>
+            STATUS: <span class="text-alert blink">CRITICAL</span>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative min-h-screen flex flex-col justify-center items-center text-center px-4">
+        <div class="max-w-5xl">
+            <p class="font-mono text-xs text-gray-500 mb-6 tracking-[0.5em] uppercase" data-animate="fade">Hypothese</p>
+            <h1 class="font-serif text-6xl md:text-9xl leading-[0.85] text-paper mb-8 mix-blend-lighten" data-animate="slide-up">
+                Design <span class="italic text-gray-500">Flaw.</span>
+            </h1>
+            <p class="font-sans text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto leading-relaxed text-balance mb-12" data-animate="fade">
+                Das Betriebssystem unserer Demokratie hat einen Architekturfehler.<br>
+                <span class="text-paper border-b border-alert">Wahlen</span> produzieren Aristokratie. <br>
+                <span class="text-paper border-b border-logic">Zufall</span> produziert Gerechtigkeit.
+            </p>
+            
+            <button id="scroll-to-sim-btn" class="group relative px-8 py-4 border border-paper/20 overflow-hidden hover-trigger">
+                <div class="absolute inset-0 w-0 bg-paper transition-all duration-[0.4s] ease-out group-hover:w-full"></div>
+                <span class="relative font-mono text-xs uppercase tracking-widest group-hover:text-void transition-colors">
+                    Start Simulation Sequence ↓
+                </span>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Section 1: The Polarization Engine (Simulator) -->
+        <section id="simulation" class="relative w-full h-screen bg-concrete overflow-hidden border-y border-white/5 flex flex-col md:flex-row">
+            
+            <!-- Controls (Sidebar) -->
+            <div class="w-full md:w-1/4 p-8 border-r border-white/5 flex flex-col justify-between z-10 bg-concrete/90 backdrop-blur">
+                <div>
+                    <h2 class="font-mono text-xs text-gray-500 uppercase tracking-widest mb-8">Experiment Settings</h2>
+                    
+                    <div class="space-y-6">
+                        <div class="group">
+                            <label class="font-sans text-sm text-gray-400 mb-2 block">Mode Select</label>
+                            <div class="flex gap-2">
+                                <button id="btn-elect" class="flex-1 py-3 border border-alert/50 text-alert font-mono text-xs uppercase hover:bg-alert hover:text-void transition-all hover-trigger active-mode">
+                                    Wahl (Status Quo)
+                                </button>
+                                <button id="btn-sort" class="flex-1 py-3 border border-white/20 text-gray-400 font-mono text-xs uppercase hover:border-logic hover:text-logic transition-all hover-trigger">
+                                    Los (Isonomie)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pt-6 border-t border-white/5">
+                            <div class="font-mono text-[10px] text-gray-500 mb-2">REAL-TIME ANALYSIS</div>
+                            <div id="analysis-text" class="font-serif text-lg leading-tight text-paper transition-all">
+                                Das Wahlsystem erzeugt Gravitationszentren (Parteien). Die Gesellschaft polarisiert sich. Ränder verhärten.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="font-mono text-[10px] text-gray-600">
+                    CANVAS RENDERER ACTIVE<br>
+                    PARTICLES: 800
+                </div>
+            </div>
+
+            <!-- Viewport -->
+            <div class="relative w-full md:w-3/4 h-full bg-void" id="canvas-wrapper"> 
+                <canvas id="sim-canvas" class="block w-full h-full"></canvas>
+                <div class="absolute inset-0 sim-overlay pointer-events-none"></div>
+                <div class="absolute top-8 right-8 font-mono text-xs text-right pointer-events-none">
+                    <div class="mb-1">SYSTEM ENTROPY</div>
+                    <div id="entropy-meter" class="text-alert text-xl">HIGH</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: The Blueprint (Stacked Cards Interaction) -->
+        <section class="py-32 px-6 md:px-12 max-w-7xl mx-auto">
+            <div class="grid md:grid-cols-12 gap-12">
+                <div class="md:col-span-4 sticky top-32 self-start">
+                    <span class="font-mono text-alert text-xs tracking-widest mb-4 block">FEHLERKORREKTUR</span>
+                    <h2 class="font-serif text-5xl text-paper mb-6">Sicherheits-<br>protokolle.</h2>
+                    <p class="font-sans text-gray-400 text-sm leading-relaxed mb-8">
+                        Ein Losverfahren ist kein Würfelspiel. Es ist ein hochpräziser algorithmischer Prozess, um Inkompetenz und Korruption technisch unmöglich zu machen.
+                    </p>
+                </div>
+
+                <div class="md:col-span-8 space-y-32">
+                    <!-- Blueprint 1 -->
+                    <div class="blueprint-card group relative border-l border-white/10 pl-8 hover:border-logic transition-colors duration-500">
+                        <div class="absolute -left-[5px] top-0 w-[9px] h-[9px] bg-void border border-white/20 group-hover:bg-logic group-hover:border-logic transition-all"></div>
+                        <div class="font-mono text-xs text-gray-500 mb-2">PROTOCOL 01</div>
+                        <h3 class="font-sans text-3xl text-paper font-bold mb-4">Stratifizierte Auswahl</h3>
+                        <p class="text-gray-400 leading-relaxed max-w-md">
+                            Wir würfeln nicht einfach. Algorithmen filtern Zufallsdaten so, dass der finale Rat ein <span class="text-logic">exaktes demografisches Abbild</span> der Bevölkerung ist. Alter, Geschlecht, Bildung, Wohnort – alles stimmt prozentual.
+                        </p>
+                        <div class="mt-6 h-1 w-full bg-white/5 overflow-hidden">
+                            <div class="h-full bg-logic w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
+                        </div>
+                    </div>
+
+                    <!-- Blueprint 2 -->
+                    <div class="blueprint-card group relative border-l border-white/10 pl-8 hover:border-logic transition-colors duration-500">
+                        <div class="absolute -left-[5px] top-0 w-[9px] h-[9px] bg-void border border-white/20 group-hover:bg-logic group-hover:border-logic transition-all"></div>
+                        <div class="font-mono text-xs text-gray-500 mb-2">PROTOCOL 02</div>
+                        <h3 class="font-sans text-3xl text-paper font-bold mb-4">Moderierte Deliberation</h3>
+                        <p class="text-gray-400 leading-relaxed max-w-md">
+                            In Parlamenten herrscht Fraktionszwang und Polemik. In Bürgerräten herrscht <span class="text-logic">kognitive Diversität</span>. Professionelle Moderatoren verhindern Dominanz. Experten input erfolgt neutral VOR der Debatte.
+                        </p>
+                        <div class="mt-6 h-1 w-full bg-white/5 overflow-hidden">
+                            <div class="h-full bg-logic w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
+                        </div>
+                    </div>
+
+                    <!-- Blueprint 3 -->
+                    <div class="blueprint-card group relative border-l border-white/10 pl-8 hover:border-logic transition-colors duration-500">
+                        <div class="absolute -left-[5px] top-0 w-[9px] h-[9px] bg-void border border-white/20 group-hover:bg-logic group-hover:border-logic transition-all"></div>
+                        <div class="font-mono text-xs text-gray-500 mb-2">PROTOCOL 03</div>
+                        <h3 class="font-sans text-3xl text-paper font-bold mb-4">Rotation & Rechenschaft</h3>
+                        <p class="text-gray-400 leading-relaxed max-w-md">
+                            Keine Karrierepolitiker. Nach dem Mandat geht man zurück in sein Leben. Keine Lobbyisten können Beziehungen aufbauen, weil die Akteure ständig wechseln. Korruption wird <span class="text-logic">strukturell sinnlos</span>.
+                        </p>
+                        <div class="mt-6 h-1 w-full bg-white/5 overflow-hidden">
+                            <div class="h-full bg-logic w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: The Evidence (Grid of Cases) -->
+        <section class="py-24 bg-paper text-void overflow-hidden">
+            <div class="px-6 mb-12 flex justify-between items-end">
+                <h2 class="font-serif text-6xl kerning-tight">Case Files.</h2>
+                <span class="font-mono text-xs uppercase tracking-widest animate-pulse">System Operational</span>
+            </div>
+            <!-- Grid of Cases -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 px-1 bg-void border-y border-void">
+                <!-- Case 1 -->
+                <div class="bg-paper p-8 md:p-12 hover:bg-white transition-colors group hover-trigger h-[400px] flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="font-mono text-xs border border-void px-2 py-1">IRL-2016</span>
+                            <span class="text-4xl opacity-20 group-hover:opacity-100 transition-opacity">🇮🇪</span>
+                        </div>
+                        <h3 class="font-sans text-2xl font-bold mb-2 group-hover:translate-x-2 transition-transform">Abtreibung & Verfassung</h3>
+                    </div>
+                    <div class="border-t border-void/10 pt-4">
+                        <p class="font-serif text-lg leading-tight mb-4">Das Parlament war gelähmt durch Angst vor Wählerverlust. 99 geloste Bürger lösten den Knoten.</p>
+                        <span class="font-mono text-[10px] uppercase tracking-widest text-logic">Result: Referendum Success</span>
+                    </div>
+                </div>
+                <!-- Case 2 -->
+                <div class="bg-paper p-8 md:p-12 hover:bg-white transition-colors group hover-trigger h-[400px] flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="font-mono text-xs border border-void px-2 py-1">BEL-2019</span>
+                            <span class="text-4xl opacity-20 group-hover:opacity-100 transition-opacity">🇧🇪</span>
+                        </div>
+                        <h3 class="font-sans text-2xl font-bold mb-2 group-hover:translate-x-2 transition-transform">Ostbelgien Modell</h3>
+                    </div>
+                    <div class="border-t border-void/10 pt-4">
+                        <p class="font-serif text-lg leading-tight mb-4">Weltweit erstes permanentes System. Der Bürgerrat ist gesetzlich neben dem Parlament verankert.</p>
+                        <span class="font-mono text-[10px] uppercase tracking-widest text-logic">Result: Permanent Legislation</span>
+                    </div>
+                </div>
+                <!-- Case 3 -->
+                <div class="bg-paper p-8 md:p-12 hover:bg-white transition-colors group hover-trigger h-[400px] flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="font-mono text-xs border border-void px-2 py-1">FRA-2019</span>
+                            <span class="text-4xl opacity-20 group-hover:opacity-100 transition-opacity">🇫🇷</span>
+                        </div>
+                        <h3 class="font-sans text-2xl font-bold mb-2 group-hover:translate-x-2 transition-transform">Convention Climat</h3>
+                    </div>
+                    <div class="border-t border-void/10 pt-4">
+                        <p class="font-serif text-lg leading-tight mb-4">150 Bürger erarbeiteten radikalere Klimaschutzmaßnahmen als jede gewählte Regierung zuvor.</p>
+                        <span class="font-mono text-[10px] uppercase tracking-widest text-alert">Result: Mixed (Gov blocked some)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Source Data (The Terminal) -->
+        <section class="py-24 px-6 md:px-12 max-w-5xl mx-auto">
+            <h2 class="font-mono text-xs text-gray-500 uppercase tracking-widest mb-8">Data Repository</h2>
+            
+            <ul class="border-t border-white/10">
+                <li class="grid md:grid-cols-12 py-6 border-b border-white/10 hover:bg-white/5 transition-colors group hover-trigger">
+                    <div class="md:col-span-2 font-mono text-xs text-gray-500 py-1">PRIMARY</div>
+                    <div class="md:col-span-6 font-serif text-xl text-paper group-hover:text-logic transition-colors">Van Reybrouck: Gegen Wahlen</div>
+                    <div class="md:col-span-4 font-sans text-sm text-gray-500 text-right">Manifesto / 2016</div>
+                </li>
+                <li class="grid md:grid-cols-12 py-6 border-b border-white/10 hover:bg-white/5 transition-colors group hover-trigger">
+                    <div class="md:col-span-2 font-mono text-xs text-gray-500 py-1">HISTORICAL</div>
+                    <div class="md:col-span-6 font-serif text-xl text-paper group-hover:text-logic transition-colors">Aristoteles: Politik (Buch IV)</div>
+                    <div class="md:col-span-4 font-sans text-sm text-gray-500 text-right">Ancient Theory / 350 BC</div>
+                </li>
+                <li class="grid md:grid-cols-12 py-6 border-b border-white/10 hover:bg-white/5 transition-colors group hover-trigger">
+                    <div class="md:col-span-2 font-mono text-xs text-gray-500 py-1">EMPIRICAL</div>
+                    <div class="md:col-span-6 font-serif text-xl text-paper group-hover:text-logic transition-colors">OECD: Catching the Deliberative Wave</div>
+                    <div class="md:col-span-4 font-sans text-sm text-gray-500 text-right">Meta-Study / 2020</div>
+                </li>
+            </ul>
+        </section>
+
+    </main>
+
+    <footer class="py-12 text-center border-t border-white/5">
+        <p class="font-mono text-[10px] text-gray-600 uppercase tracking-[0.2em]">End of Report • Generated 2025</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            gsap.registerPlugin(ScrollTrigger);
+            
+            // --- Custom Cursor Logic (A11y Refinement) ---
+            const cursor = document.getElementById('cursor');
+            const hoverTriggers = document.querySelectorAll('.hover-trigger, button, a, [role="button"], [tabindex]:not([tabindex="-1"])'); 
+
+            const activateCursorHover = () => cursor.classList.add('hovered');
+            const deactivateCursorHover = () => cursor.classList.remove('hovered');
+
+            document.addEventListener('mousemove', (e) => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+            });
+
+            hoverTriggers.forEach(trigger => {
+                trigger.addEventListener('mouseenter', activateCursorHover);
+                trigger.addEventListener('mouseleave', deactivateCursorHover);
+                trigger.addEventListener('focus', activateCursorHover); 
+                trigger.addEventListener('blur', deactivateCursorHover); 
+            });
+
+            // --- Clock ---
+            // Der Schutzzauber bleibt, aber jetzt sollte er das Element 'clock' finden.
+            const clockElement = document.getElementById('clock');
+            if (clockElement) {
+                setInterval(() => {
+                    const now = new Date();
+                    clockElement.innerText = now.toLocaleTimeString('de-DE');
+                }, 1000);
+            } else {
+                console.error("HTML-Genie-Diagnose: Das Uhren-Element (ID 'clock') wurde nicht im DOM-Gefüge gefunden.");
+            }
+
+            // --- GSAP Reveal ---
+            gsap.utils.toArray('[data-animate="fade"]').forEach(el => {
+                gsap.from(el, {
+                    opacity: 0, y: 20, duration: 1, delay: 0.2, scrollTrigger: el
+                });
+            });
+            gsap.from('[data-animate="slide-up"]', {
+                y: 100, opacity: 0, duration: 1.5, ease: "power4.out"
+            });
+            gsap.utils.toArray('.blueprint-card').forEach((card, i) => {
+                gsap.from(card, {
+                    scrollTrigger: { trigger: card, start: "top 85%" },
+                    x: -50, opacity: 0, duration: 0.8, delay: i * 0.1
+                });
+            });
+
+            // --- Moderne Event Listeners ---
+            
+            // 1. Scroll-Verhalten binden
+            function scrollToSim() {
+                document.getElementById('simulation').scrollIntoView({ behavior: 'smooth' });
+            }
+            // Robuste Prüfung: Nur den Listener binden, wenn der Button existiert.
+            const scrollBtn = document.getElementById('scroll-to-sim-btn');
+            if (scrollBtn) {
+                scrollBtn.addEventListener('click', scrollToSim);
+            }
+
+            // --- ADVANCED SIMULATOR ENGINE (Gravity & Polarization) ---
+            const canvas = document.getElementById('sim-canvas');
+            const ctx = canvas.getContext('2d');
+            const wrapper = document.getElementById('canvas-wrapper');
+            
+            let width, height;
+            let particles = [];
+            let centers = []; // Gravity wells
+            let mode = 'election';
+            let animationFrame;
+
+            // Colors
+            const C_VOID = '#050505';
+            const C_PARTICLE = '#444444';
+            const C_ALERT = '#FF3333'; // Red
+            const C_LOGIC = '#00CC66'; // Green/Teal
+            
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * width;
+                    this.y = Math.random() * height;
+                    this.vx = (Math.random() - 0.5) * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                    this.size = Math.random() * 1.5 + 0.5;
+                    this.color = C_PARTICLE;
+                    this.selected = false;
+                    this.preference = Math.random(); 
+                }
+                update() {
+                    if (mode === 'election') {
+                        let target = this.preference < 0.5 ? centers[0] : centers[1];
+                        let dx = target.x - this.x;
+                        let dy = target.y - this.y;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        if(dist > 10) {
+                            this.vx += (dx / dist) * 0.05;
+                            this.vy += (dy / dist) * 0.05;
+                        }
+                        this.vx *= 0.95;
+                        this.vy *= 0.95;
+                        this.color = this.preference < 0.5 ? '#FF3333' : '#3366FF'; 
+                        this.size = 1.5;
+                    } else {
+                        this.vx += (Math.random() - 0.5) * 0.2;
+                        this.vy += (Math.random() - 0.5) * 0.2;
+                        const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+                        if(speed > 2) {
+                            this.vx = (this.vx/speed)*2;
+                            this.vy = (this.vy/speed)*2;
+                        }
+                        if (this.selected) {
+                            this.color = C_LOGIC;
+                            this.size = 3;
+                        } else {
+                            this.color = '#333'; 
+                            this.size = 1;
+                        }
+                    }
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if (this.x < 0 || this.x > width) this.vx *= -1;
+                    if (this.y < 0 || this.y > height) this.vy *= -1;
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+
+            function resize() {
+                // Resize muss sicherstellen, dass das 'wrapper'-Element existiert
+                if (!wrapper) return; 
+                width = wrapper.offsetWidth;
+                height = wrapper.offsetHeight;
+                canvas.width = width;
+                canvas.height = height;
+                centers = [
+                    {x: width * 0.25, y: height * 0.5},
+                    {x: width * 0.75, y: height * 0.5}
+                ];
+            }
+
+            function initSim() {
+                // Die Simulation sollte nur starten, wenn das Canvas-Element existiert
+                if (!canvas || !wrapper) {
+                    console.error("HTML-Genie-Diagnose: Simulations-Canvas oder Wrapper nicht gefunden.");
+                    return;
+                }
+                resize();
+                window.addEventListener('resize', resize);
+                particles = [];
+                for(let i=0; i<800; i++) particles.push(new Particle());
+                const indices = new Set();
+                while(indices.size < 50) indices.add(Math.floor(Math.random() * 800));
+                indices.forEach(i => particles[i].selected = true);
+                loop();
+            }
+
+            function loop() {
+                if (!ctx) return; // Schutz, falls context jemals null ist
+                ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+                ctx.fillRect(0, 0, width, height);
+                particles.forEach(p => {
+                    p.update();
+                    p.draw();
+                });
+                if(mode === 'election') {
+                    ctx.beginPath();
+                    ctx.arc(centers[0].x, centers[0].y, 5, 0, Math.PI*2);
+                    ctx.arc(centers[1].x, centers[1].y, 5, 0, Math.PI*2);
+                    ctx.fillStyle = '#FFF';
+                    ctx.fill();
+                }
+                animationFrame = requestAnimationFrame(loop);
+            }
+
+            // 2. Interaction Logic (jetzt gekapselt)
+            function setMode(newMode) {
+                mode = newMode;
+                
+                const btnElect = document.getElementById('btn-elect');
+                const btnSort = document.getElementById('btn-sort');
+                const analysis = document.getElementById('analysis-text');
+                const entropy = document.getElementById('entropy-meter');
+                
+                // Schutzzauber: Stellen Sie sicher, dass alle UI-Elemente vorhanden sind
+                if (!btnElect || !btnSort || !analysis || !entropy) {
+                     console.error("HTML-Genie-Diagnose: Simulations-UI-Elemente (Buttons, Analyse, Entropie) nicht gefunden.");
+                    return;
+                }
+
+                if (mode === 'election') {
+                    btnElect.className = "flex-1 py-3 border border-alert/50 text-alert font-mono text-xs uppercase hover:bg-alert hover:text-void transition-all hover-trigger bg-alert text-void";
+                    btnSort.className = "flex-1 py-3 border border-white/20 text-gray-400 font-mono text-xs uppercase hover:border-logic hover:text-logic transition-all hover-trigger";
+                    analysis.innerHTML = "Das Wahlsystem erzeugt <span class='text-alert'>Gravitationszentren</span> (Parteien). Die Gesellschaft polarisiert sich. Ränder verhärten.";
+                    entropy.innerText = "HIGH (Polarized)";
+                    entropy.className = "text-alert text-xl";
+                } else {
+                    btnSort.className = "flex-1 py-3 border border-white/20 text-gray-400 font-mono text-xs uppercase hover:border-logic hover:text-logic transition-all hover-trigger border-logic text-logic";
+                    btnElect.className = "flex-1 py-3 border border-alert/50 text-alert font-mono text-xs uppercase hover:bg-alert hover:text-void transition-all hover-trigger";
+                    analysis.innerHTML = "Zufallsauswahl durchbricht die Blasen. Ein <span class='text-logic'>Querschnitt</span> der Bevölkerung bildet sich. Hohe kognitive Diversität.";
+                    entropy.innerText = "OPTIMAL (Diverse)";
+                    entropy.className = "text-logic text-xl";
+                }
+            };
+
+            // 3. Event Listeners für Modus-Wechsel binden
+            const electBtn = document.getElementById('btn-elect');
+            const sortBtn = document.getElementById('btn-sort');
+            
+            if(electBtn) electBtn.addEventListener('click', () => setMode('election'));
+            if(sortBtn) sortBtn.addEventListener('click', () => setMode('sortition'));
+
+            // Starte die Simulation, wenn alle Skripte geladen sind
+            initSim();
+        });
+    </script>
+</body>
+</html>
